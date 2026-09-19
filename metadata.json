@@ -1,0 +1,6 @@
+{
+  "name": "Silas Finance",
+  "description": "Sistema de controle financeiro pessoal e empresarial exclusivo para Silas Vinícius com autenticação, banco de dados persistente e gestão multiempresa.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
