@@ -1,15 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
-import { Lock, Mail, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
+import {
+  Lock,
+  User as UserIcon,
+  ArrowRight,
+  ShieldCheck,
+  CheckCircle2,
+  AlertCircle,
+  KeyRound,
+  Info,
+  ExternalLink,
+} from 'lucide-react';
 
 export const LoginScreen: React.FC = () => {
-  const { signInWithEmail, signUpWithEmail, signInWithGoogle, resetPassword, signInAsSilas } = useAuth();
+  const {
+    signInWithCredentials,
+    signUpWithEmail,
+    signInWithGoogle,
+    resetPassword,
+    signInAsSilas,
+    googleStatus,
+  } = useAuth();
+
   const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('silasvinicius.dev@gmail.com');
-  const [password, setPassword] = useState('SilasFinance2026!');
+  const [identifier, setIdentifier] = useState('silas');
+  const [password, setPassword] = useState('060333');
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showGoogleDetails, setShowGoogleDetails] = useState(false);
+  const [googleApiInfo, setGoogleApiInfo] = useState<{
+    status: string;
+    clientId: string;
+    authDomain: string;
+    projectId: string;
+  } | null>(null);
+
+  useEffect(() => {
+    // Fetch backend Google status
+    fetch('/api/auth/google-status')
+      .then((res) => res.json())
+      .then((data) => {
+        setGoogleApiInfo({
+          status: data.status,
+          clientId: data.clientId,
+          authDomain: data.authDomain,
+          projectId: data.projectId,
+        });
+      })
+      .catch((err) => {
+        console.warn('Erro ao checar status do Google:', err);
+      });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,36 +61,28 @@ export const LoginScreen: React.FC = () => {
 
     try {
       if (isSignUp) {
-        await signUpWithEmail(email, password);
+        await signUpWithEmail(identifier, password);
       } else {
-        await signInWithEmail(email, password);
+        await signInWithCredentials(identifier, password);
       }
     } catch (err: any) {
       console.error(err);
-      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        setError('E-mail ou senha incorretos. Verifique suas credenciais ou use o botão de Acesso Rápido.');
-      } else if (err.code === 'auth/email-already-in-use') {
-        setError('Este e-mail já está cadastrado. Por favor, faça login.');
-      } else if (err.code === 'auth/weak-password') {
-        setError('A senha deve ter no mínimo 6 caracteres.');
-      } else {
-        setError(err.message || 'Erro ao processar autenticação.');
-      }
+      setError(err.message || 'Erro ao processar autenticação.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleResetPassword = async () => {
-    if (!email) {
-      setError('Digite seu e-mail para recuperar a senha.');
+    if (!identifier) {
+      setError('Digite seu usuário ou e-mail para recuperar a senha.');
       return;
     }
     try {
-      await resetPassword(email);
-      setSuccessMsg('E-mail de recuperação enviado com sucesso!');
+      await resetPassword(identifier);
+      setSuccessMsg('Instruções de recuperação enviadas.');
     } catch (err: any) {
-      setError('Erro ao enviar e-mail de recuperação.');
+      setError('Erro ao enviar recuperação.');
     }
   };
 
@@ -58,7 +92,22 @@ export const LoginScreen: React.FC = () => {
     try {
       await signInAsSilas();
     } catch (err: any) {
-      setError('Erro no login rápido. Tente com o Google abaixo.');
+      setError(err.message || 'Erro no login de Silas.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await signInWithGoogle();
+    } catch (err: any) {
+      setError(
+        err.message ||
+          'Não foi possível conectar com a conta Google. Você também pode acessar com usuário: silas / senha: 060333.'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -68,13 +117,13 @@ export const LoginScreen: React.FC = () => {
     <div className="min-h-screen bg-[#070a10] flex flex-col justify-center items-center p-4 sm:p-6 text-slate-100 selection:bg-blue-500 selection:text-white">
       {/* Background ambient lighting */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[500px] bg-blue-600/10 blur-[130px] rounded-full" />
-        <div className="absolute -bottom-40 right-1/4 w-[500px] h-[400px] bg-indigo-600/10 blur-[140px] rounded-full" />
+        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[650px] h-[500px] bg-blue-600/10 blur-[140px] rounded-full" />
+        <div className="absolute -bottom-40 right-1/4 w-[500px] h-[400px] bg-indigo-600/10 blur-[150px] rounded-full" />
       </div>
 
       <div className="relative w-full max-w-md z-10">
         {/* Brand Header */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 shadow-xl shadow-blue-600/25 mb-4 border border-blue-400/20">
             <span className="text-2xl font-bold tracking-tight text-white">S</span>
           </div>
@@ -82,8 +131,20 @@ export const LoginScreen: React.FC = () => {
             SILAS FINANCE
           </h1>
           <p className="text-sm text-slate-400 mt-1.5 font-normal">
-            Controle financeiro pessoal e empresarial
+            Sistema Financeiro Empresarial & Pessoal
           </p>
+        </div>
+
+        {/* Credentials Reminder Pill */}
+        <div className="mb-4 bg-blue-950/40 border border-blue-800/50 rounded-xl p-3 flex items-center justify-between text-xs text-blue-300">
+          <div className="flex items-center gap-2">
+            <KeyRound className="w-4 h-4 text-blue-400 shrink-0" />
+            <span>
+              Acesso configurado:{' '}
+              <strong className="text-white font-semibold">usuario: silas</strong> |{' '}
+              <strong className="text-white font-semibold">senha: 060333</strong>
+            </span>
+          </div>
         </div>
 
         {/* Login Box */}
@@ -91,15 +152,15 @@ export const LoginScreen: React.FC = () => {
           <div className="flex items-center justify-between pb-5 border-b border-slate-800/60 mb-6">
             <div>
               <h2 className="text-lg font-semibold text-white">
-                {isSignUp ? 'Criar sua conta' : 'Acesso ao Sistema'}
+                {isSignUp ? 'Criar nova conta' : 'Acesso ao Painel'}
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                {isSignUp ? 'Preencha os dados abaixo' : 'Entre com seu e-mail e senha'}
+                {isSignUp ? 'Preencha os dados abaixo' : 'Entre com usuário e senha ou Google'}
               </p>
             </div>
             <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2.5 py-1 rounded-full">
               <ShieldCheck className="w-3.5 h-3.5" />
-              PostgreSQL
+              Cloud SQL
             </span>
           </div>
 
@@ -119,21 +180,21 @@ export const LoginScreen: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5" htmlFor="email-input">
-                E-mail
+              <label className="block text-xs font-medium text-slate-300 mb-1.5" htmlFor="user-input">
+                Usuário ou E-mail
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                  <Mail className="w-4 h-4" />
+                  <UserIcon className="w-4 h-4" />
                 </div>
                 <input
-                  id="email-input"
-                  type="email"
+                  id="user-input"
+                  type="text"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="seu@email.com"
-                  className="w-full bg-[#161c2d] border border-slate-700/70 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="silas ou seu@email.com"
+                  className="w-full bg-[#161c2d] border border-slate-700/70 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors font-sans"
                 />
               </div>
             </div>
@@ -163,13 +224,14 @@ export const LoginScreen: React.FC = () => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="•••••••••••••"
-                  className="w-full bg-[#161c2d] border border-slate-700/70 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                  placeholder="••••••••"
+                  className="w-full bg-[#161c2d] border border-slate-700/70 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors font-mono"
                 />
               </div>
             </div>
 
             <button
+              id="btn-submit-login"
               type="submit"
               disabled={isSubmitting}
               className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors shadow-lg shadow-blue-600/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 mt-2"
@@ -178,42 +240,46 @@ export const LoginScreen: React.FC = () => {
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  <span>{isSignUp ? 'CRIAR CONTA' : 'ENTRAR'}</span>
+                  <span>{isSignUp ? 'CRIAR CONTA' : 'ENTRAR COM CREDENCIAIS'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
           </form>
 
+          {/* Quick Access for Silas */}
+          <div className="mt-3">
+            <button
+              id="btn-quick-login-silas"
+              type="button"
+              onClick={handleQuickLogin}
+              disabled={isSubmitting}
+              className="w-full bg-gradient-to-r from-blue-900/50 to-indigo-900/50 hover:from-blue-900/70 hover:to-indigo-900/70 border border-blue-600/50 text-blue-200 text-xs font-semibold py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              Acesso Imediato: Silas Vinícius (silas / 060333)
+            </button>
+          </div>
+
           {/* Divider */}
-          <div className="relative my-6">
+          <div className="relative my-5">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-800" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-[#0f1422] px-3 text-slate-500 font-medium tracking-wider">
-                ou acesso direto
+                ou com o Google
               </span>
             </div>
           </div>
 
-          {/* Quick Access for Silas */}
-          <button
-            type="button"
-            onClick={handleQuickLogin}
-            disabled={isSubmitting}
-            className="w-full bg-gradient-to-r from-blue-900/40 to-indigo-900/40 hover:from-blue-900/60 hover:to-indigo-900/60 border border-blue-700/40 text-blue-200 text-xs font-medium py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer mb-3"
-          >
-            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-            Entrar como Silas Vinícius (Acesso Imediato)
-          </button>
-
           {/* Google Auth Button */}
           <button
+            id="btn-google-login"
             type="button"
-            onClick={signInWithGoogle}
+            onClick={handleGoogleLogin}
             disabled={isSubmitting}
-            className="w-full bg-[#161c2d] hover:bg-[#1c2438] border border-slate-700/60 text-slate-200 text-xs font-medium py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full bg-[#161c2d] hover:bg-[#1c2438] active:bg-[#131929] border border-slate-700/80 text-slate-200 text-xs font-medium py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-2.5 cursor-pointer shadow-sm"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path
@@ -233,11 +299,50 @@ export const LoginScreen: React.FC = () => {
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
               />
             </svg>
-            Continuar com o Google
+            <span>Continuar com o Google (OAuth 2.0)</span>
           </button>
 
+          {/* Google API Status & Diagnostic View */}
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              onClick={() => setShowGoogleDetails(!showGoogleDetails)}
+              className="inline-flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-300 transition-colors"
+            >
+              <Info className="w-3.5 h-3.5 text-blue-400" />
+              <span>Verificar status da conexão Google API</span>
+            </button>
+
+            {showGoogleDetails && (
+              <div className="mt-2.5 p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-left text-[11px] font-mono text-slate-300 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Google Client ID:</span>
+                  <span className="text-blue-400 truncate max-w-[190px]">
+                    {googleApiInfo?.clientId || googleStatus.clientId}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Auth Domain:</span>
+                  <span className="text-emerald-400 truncate">
+                    {googleApiInfo?.authDomain || 'effortless-adviser-d79b0.firebaseapp.com'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">GSI Script:</span>
+                  <span className={googleStatus.isLoaded ? 'text-emerald-400' : 'text-amber-400'}>
+                    {googleStatus.isLoaded ? 'Carregado (Ativo)' : 'Iniciando...'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-slate-800/80">
+                  <span className="text-slate-400">Usuário Mapeado:</span>
+                  <span className="text-slate-200">silasvinicius.dev@gmail.com</span>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Toggle between Login and Signup */}
-          <div className="mt-6 pt-5 border-t border-slate-800/60 text-center">
+          <div className="mt-5 pt-4 border-t border-slate-800/60 text-center">
             <button
               type="button"
               onClick={() => {
@@ -262,7 +367,7 @@ export const LoginScreen: React.FC = () => {
 
         {/* Footer info */}
         <p className="text-center text-xs text-slate-500 mt-6 font-mono">
-          SILAS FINANCE • PostgreSQL & Cloud SQL
+          SILAS FINANCE • PostgreSQL & Cloud SQL • Auth Multi-Provider
         </p>
       </div>
     </div>

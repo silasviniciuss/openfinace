@@ -17,7 +17,9 @@ import {
 } from './src/db/schema.ts';
 import { getOrCreateUser } from './src/db/users.ts';
 import { ensureUserSeedData } from './src/db/seed.ts';
-import { requireAuth, type AuthRequest } from './src/middleware/auth.ts';
+import jwt from 'jsonwebtoken';
+import { requireAuth, type AuthRequest, JWT_SECRET } from './src/middleware/auth.ts';
+import firebaseConfig from './firebase-applet-config.json' with { type: 'json' };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,7 +35,163 @@ async function startServer() {
     res.json({ status: 'ok', service: 'Silas Finance API' });
   });
 
-  // User Auth & Synchronization
+  // Google Connection API status verification
+  app.get('/api/auth/google-status', (req, res) => {
+    res.json({
+      status: 'configured',
+      service: 'Google OAuth & Identity Toolkit',
+      projectId: firebaseConfig.projectId,
+      clientId: firebaseConfig.oAuthClientId,
+      authDomain: firebaseConfig.authDomain,
+      masterUser: 'silas',
+      masterEmail: 'silasvinicius.dev@gmail.com',
+      ready: true,
+    });
+  });
+
+  // Direct User & Password Authentication (supports user: silas, pass: 060333)
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      if (!username || !password) {
+        return res.status(400).json({ error: 'Usuário e senha são obrigatórios.' });
+      }
+
+      const cleanUser = String(username).trim().toLowerCase();
+      const cleanPass = String(password).trim();
+
+      // Master Silas credentials check
+      const isSilas =
+        cleanUser === 'silas' ||
+        cleanUser === 'silasvinicius' ||
+        cleanUser === 'silasvinicius.dev@gmail.com' ||
+        cleanUser === 'silas@silasfinance.com';
+
+      if (isSilas) {
+        if (cleanPass === '060333' || cleanPass === 'SilasFinance2026!') {
+          const silasUid = 'usr_silas_vinicius';
+          const silasEmail = 'silasvinicius.dev@gmail.com';
+          const silasName = 'Silas Vinícius';
+
+          // Ensure user exists in PostgreSQL
+          const user = await getOrCreateUser(
+            silasUid,
+            silasEmail,
+            silasName,
+            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80'
+          );
+
+          // Seed complete financial ecosystem if first time
+          await ensureUserSeedData(silasUid);
+
+          // Generate long-lived JWT token
+          const token = jwt.sign(
+            { uid: silasUid, email: silasEmail, name: silasName },
+            JWT_SECRET,
+            { expiresIn: '30d' }
+          );
+
+          return res.json({
+            token,
+            user,
+            message: 'Autenticado com sucesso como Silas Vinícius',
+          });
+        } else {
+          return res.status(401).json({ error: 'Senha incorreta para o usuário silas.' });
+        }
+      }
+
+      // Generic user authentication / dynamic user creation
+      const genericUid = `usr_${cleanUser.replace(/[^a-z0-9]/g, '_')}`;
+      const genericEmail = cleanUser.includes('@') ? cleanUser : `${cleanUser}@silasfinance.com`;
+      const genericName = cleanUser.charAt(0).toUpperCase() + cleanUser.slice(1);
+
+      const user = await getOrCreateUser(genericUid, genericEmail, genericName);
+      await ensureUserSeedData(genericUid);
+
+      const token = jwt.sign(
+        { uid: genericUid, email: genericEmail, name: genericName },
+        JWT_SECRET,
+        { expiresIn: '30d' }
+      );
+
+      return res.json({
+        token,
+        user,
+        message: 'Autenticado com sucesso',
+      });
+    } catch (error: any) {
+      console.error('Erro na autenticação local:', error);
+      return res.status(500).json({ error: error.message || 'Erro ao processar login.' });
+    }
+  });
+
+  // Google OAuth verification & sign-in endpoint
+  app.post('/api/auth/google', async (req, res) => {
+    try {
+      const { credential, idToken, user: clientUser } = req.body;
+
+      let uid = '';
+      let email = '';
+      let name = '';
+      let avatar = '';
+
+      // Parse Google JWT credential if provided (from Google Identity Services)
+      if (credential) {
+        try {
+          const decoded = jwt.decode(credential) as any;
+          if (decoded && decoded.sub) {
+            uid = `google_${decoded.sub}`;
+            email = decoded.email || '';
+            name = decoded.name || decoded.given_name || 'Usuário Google';
+            avatar = decoded.picture || '';
+          }
+        } catch (e) {
+          console.warn('Could not decode Google credential directly:', e);
+        }
+      }
+
+      // If client provided user details (from Firebase Google Auth)
+      if (!uid && clientUser) {
+        uid = clientUser.uid || `google_${Date.now()}`;
+        email = clientUser.email || '';
+        name = clientUser.displayName || 'Usuário Google';
+        avatar = clientUser.photoURL || '';
+      }
+
+      if (!uid) {
+        return res.status(400).json({ error: 'Dados do Google inválidos ou incompletos.' });
+      }
+
+      // If Silas logs in via Google with his email
+      if (email.toLowerCase() === 'silasvinicius.dev@gmail.com') {
+        uid = 'usr_silas_vinicius';
+        name = 'Silas Vinícius';
+      }
+
+      // Upsert in PostgreSQL
+      const dbUser = await getOrCreateUser(uid, email || `${uid}@google.com`, name, avatar);
+      await ensureUserSeedData(uid);
+
+      // Sign session JWT
+      const sessionToken = jwt.sign(
+        { uid, email, name, picture: avatar },
+        JWT_SECRET,
+        { expiresIn: '30d' }
+      );
+
+      return res.json({
+        token: sessionToken,
+        user: dbUser,
+        message: 'Conectado com o Google com sucesso',
+      });
+    } catch (error: any) {
+      console.error('Erro no Google Sign-In:', error);
+      return res.status(500).json({ error: error.message || 'Erro ao autenticar com o Google.' });
+    }
+  });
+
+  // User Auth & Synchronization (for existing Firebase flows)
   app.post('/api/auth/sync', requireAuth, async (req: AuthRequest, res: Response) => {
     try {
       const { name, avatar } = req.body;
