@@ -7,9 +7,7 @@ import {
   ShieldCheck,
   CheckCircle2,
   AlertCircle,
-  KeyRound,
   Info,
-  ExternalLink,
 } from 'lucide-react';
 
 export const LoginScreen: React.FC = () => {
@@ -18,13 +16,12 @@ export const LoginScreen: React.FC = () => {
     signUpWithEmail,
     signInWithGoogle,
     resetPassword,
-    signInAsSilas,
     googleStatus,
   } = useAuth();
 
   const [isSignUp, setIsSignUp] = useState(false);
-  const [identifier, setIdentifier] = useState('silas');
-  const [password, setPassword] = useState('060333');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -86,18 +83,6 @@ export const LoginScreen: React.FC = () => {
     }
   };
 
-  const handleQuickLogin = async () => {
-    setError(null);
-    setIsSubmitting(true);
-    try {
-      await signInAsSilas();
-    } catch (err: any) {
-      setError(err.message || 'Erro no login de Silas.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleGoogleLogin = async () => {
     setError(null);
     setIsSubmitting(true);
@@ -106,7 +91,7 @@ export const LoginScreen: React.FC = () => {
     } catch (err: any) {
       setError(
         err.message ||
-          'Não foi possível conectar com a conta Google. Você também pode acessar com usuário: silas / senha: 060333.'
+          'Não foi possível conectar com a conta Google. Verifique sua conexão ou tente novamente.'
       );
     } finally {
       setIsSubmitting(false);
@@ -135,18 +120,6 @@ export const LoginScreen: React.FC = () => {
           </p>
         </div>
 
-        {/* Credentials Reminder Pill */}
-        <div className="mb-4 bg-blue-950/40 border border-blue-800/50 rounded-xl p-3 flex items-center justify-between text-xs text-blue-300">
-          <div className="flex items-center gap-2">
-            <KeyRound className="w-4 h-4 text-blue-400 shrink-0" />
-            <span>
-              Acesso configurado:{' '}
-              <strong className="text-white font-semibold">usuario: silas</strong> |{' '}
-              <strong className="text-white font-semibold">senha: 060333</strong>
-            </span>
-          </div>
-        </div>
-
         {/* Login Box */}
         <div className="bg-[#0f1422] border border-slate-800/80 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl relative">
           <div className="flex items-center justify-between pb-5 border-b border-slate-800/60 mb-6">
@@ -155,7 +128,7 @@ export const LoginScreen: React.FC = () => {
                 {isSignUp ? 'Criar nova conta' : 'Acesso ao Painel'}
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                {isSignUp ? 'Preencha os dados abaixo' : 'Entre com usuário e senha ou Google'}
+                {isSignUp ? 'Preencha os dados abaixo' : 'Entre com suas credenciais ou conta Google'}
               </p>
             </div>
             <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2.5 py-1 rounded-full">
@@ -193,7 +166,7 @@ export const LoginScreen: React.FC = () => {
                   required
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="silas ou seu@email.com"
+                  placeholder="Seu usuário ou e-mail"
                   className="w-full bg-[#161c2d] border border-slate-700/70 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors font-sans"
                 />
               </div>
@@ -247,20 +220,6 @@ export const LoginScreen: React.FC = () => {
             </button>
           </form>
 
-          {/* Quick Access for Silas */}
-          <div className="mt-3">
-            <button
-              id="btn-quick-login-silas"
-              type="button"
-              onClick={handleQuickLogin}
-              disabled={isSubmitting}
-              className="w-full bg-gradient-to-r from-blue-900/50 to-indigo-900/50 hover:from-blue-900/70 hover:to-indigo-900/70 border border-blue-600/50 text-blue-200 text-xs font-semibold py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Acesso Imediato: Silas Vinícius (silas / 060333)
-            </button>
-          </div>
-
           {/* Divider */}
           <div className="relative my-5">
             <div className="absolute inset-0 flex items-center">
@@ -310,7 +269,7 @@ export const LoginScreen: React.FC = () => {
               className="inline-flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-300 transition-colors"
             >
               <Info className="w-3.5 h-3.5 text-blue-400" />
-              <span>Verificar status da conexão Google API</span>
+              <span>Status da conexão Google API</span>
             </button>
 
             {showGoogleDetails && (
@@ -332,10 +291,6 @@ export const LoginScreen: React.FC = () => {
                   <span className={googleStatus.isLoaded ? 'text-emerald-400' : 'text-amber-400'}>
                     {googleStatus.isLoaded ? 'Carregado (Ativo)' : 'Iniciando...'}
                   </span>
-                </div>
-                <div className="flex items-center justify-between pt-1 border-t border-slate-800/80">
-                  <span className="text-slate-400">Usuário Mapeado:</span>
-                  <span className="text-slate-200">silasvinicius.dev@gmail.com</span>
                 </div>
               </div>
             )}
